@@ -1,0 +1,377 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+---
+
+# Mini Projeto - Data Science Academy
+
+### André Campos da Silva
+### 7 de Novembro, 2020
+
+## Projeto  -  Analise Ocorrência Zica Virus
+Realizar uma analise exploratória das ocorrências do Zica virus em determinadas datas. 
+
+
+
+## Coletando os dados
+
+``` {r}
+# Carrego os pacotes necessários para o projeto
+
+#install.packages('tidyverse')
+#install.packages("plyr")
+#install.packages("plotly")
+#install.packages('sf')
+#install.packages("geobr")
+
+
+library('tidyverse')
+library("plyr")
+library('plotly')
+library('sf')
+library('geobr')
+library('ggthemes')
+```
+
+
+```{r}
+# Carrego os dados que serão usados para a análise.
+arquivos <- list.files('F:/Cursos/Formação-Ciêntista-de-Dados-DSA/Big-Data-Analytics-com-R-e-Microsoft-Azure-Machine-Learning/19.Mini-Projeto-Ocorrencia-de-ZicaVirus-em-Grafico-Interativo/Minha_Resolução/Arquivos', full.names = TRUE)
+arquivos
+class(arquivos)
+
+# Uso o lapply pra colocar todos os arquivos em uma lista.  
+df_list <- lapply(arquivos, read_csv)
+
+# Uso a função do.call, para trazer toda lista para um só DF.  
+ df_base <- do.call(rbind,df_list)
+ df <- do.call(rbind,df_list)
+```
+
+
+## Tratamento dos dados
+
+```{r}
+# Retiro do  dataset as colunas que não são necessarias para a analise. 
+ df$data_field_code <- NULL
+ df$data_field <- NULL
+ df$time_period <- NULL
+ df$time_period_type <- NULL
+```
+
+```{r}
+ # Aqui tenho o dataset que precisamos tratar, temos que jogar a região para uma nova coluna assim 
+ # como o pais, a ideia é deixar uma coluna pra pais, região e estado.
+ head(df)
+ glimpse(df)
+```
+
+```{r}
+ # Tiro o nome Brazil antes de cada estado;
+ df$location <- gsub('Brazil-', '',df$location)
+ # Adciono a variavél Região que vou usar na programação que vou criar para 
+ # atribuir a região a cada estado em uma coluna. 
+ df$Region <- NA
+```
+
+```{r}
+ # Crio os vetores com os nomes dos estados de cada região para usar na formula. 
+ Norte <- c('Acre', 'Amazonas', 'Roraima', 'Para', 'Amapa', 'Tocantins', 'Rondonia')
+ Nordeste <- c('Maranhao','Piaui','Ceara', 'Rio_Grande_do_Norte','Paraiba',
+               'Pernambuco','Alagoas', 'Sergipe','Bahia')
+ Sudeste <- c('Minas_Gerais','Espirito_Santo','Rio_de_Janeiro','Sao_Paulo')
+ 
+ Sul <- c('Parana', 'Santa_Catarina', 'Rio_Grande_do_Sul')
+ Centro_Oeste <- c('Mato_Grosso_do_Sul', 'Mato_Grosso','Goias','Distrito_Federal')
+```
+
+```{r}
+ # Programação que usa os vetores de região criados acima para atribuir os valores certos
+ # nomeando cada Região na linha correta na variável região. 
+ 
+for (i in 1:length(df$location)){
+   if (df$location[i] %in% Norte){
+        df$Region[i] = 'Norte'
+        
+   }else if 
+      (df$location[i] %in% Nordeste){
+        df$Region[i] = 'Nordeste'
+        
+   }else if 
+      (df$location[i] %in% Sudeste){
+        df$Region[i] = 'Sudeste'
+        
+   }else if
+      (df$location[i] %in% Sul){
+        df$Region[i] = 'Sul'
+   
+   }else if
+      (df$location[i] %in% Centro_Oeste){
+        df$Region[i] = 'Centro_Oeste'  
+   }    
+}
+
+head(df)
+```
+
+```{r}
+# Crio um outro data frame para pegar os valores totais de cada região por data que ficaram
+# com NA na variavel Region, pois eu vou retirar eles do data frame, pois esse somatório eu posso pegar
+# depois com o pacote dplyr summarizando, mas estou salvando para comparar para verificar se ouve algum erro.
+dfNulos <- subset(df, is.na(Region))
+```
+
+```{r}
+# Faço uma copia do DF que tratei a variavel Region, tirando os valores nulos que salvei acima,
+# ficando com o data set quase da forma esperada, depois eu criou uma variavel pais colocando Brasil
+# Só para constar mesmo, embora não seja necessario pois são regiões apenas do Brasil. 
+df2 <- df[!is.na(df$Region),]
+```
+
+```{r}
+# Tiro as variveis location_type e unit que não são relevantes mais, e ja add uma variável,
+# Country como passei acima, e no final faço o segundo select para acertar as colunas nas posições
+# que acho mais interessante. 
+df2 <- df2 %>%
+        select(report_date, Region, location, value)%>%
+        mutate(Country = 'Brazil')%>%
+        select(report_date,Country, Region, location, value)        
+
+# Como é um data set do Brasil eu vou renomear as variáveis para os nomes PT.
+colunas <- c('Data_reportada', 'Pais', 'Regiao', 'Estado', 'Qtd_Casos')
+names(df2) <- colunas
+View(df2)
+glimpse(df2)
+dim(df2)
+# Salvo em um arquivo o dataset ja tratado.
+# write_csv(df2, "F:/Cursos/Formação-Ciêntista-de-Dados-DSA/Big-Data-Analytics-com-R-e-Microsoft-Azure-Machine-Learning/19.Mini-Projeto-Ocorrencia-de-ZicaVirus-em-Grafico-Interativo/Minha_Resolução/Arquivos/ZicaVirus_Analyse_Tratado.csv")
+```
+
+## Analise Exploratória 
+
+
+```{r}
+# Total de casos agrupando por data e região.
+df2%>%
+ddply(.(Data_reportada, Regiao),
+      summarize,
+     Media_Casos = sum(Qtd_Casos))
+```
+
+
+
+```{r}
+# Total de casos por região. 
+df2%>%
+  select(Regiao,Data_reportada,Qtd_Casos)%>%
+        group_by(Regiao)%>%
+  filter(Data_reportada == '2016-06-11')%>%
+  summarise(Total = sum(Qtd_Casos))
+```
+
+ 
+```{r}
+# Total de casos agrupando por região e estado.
+df2%>%
+  select(Regiao,Data_reportada,Qtd_Casos,Estado)%>%
+  group_by(Regiao,Estado)%>%
+  filter(Data_reportada == '2016-06-11')%>%
+  summarise(Total = sum(Qtd_Casos))
+```
+
+```{r}
+# Quantidade de casos por data.
+df2%>%
+  ddply(.(Data_reportada),
+        summarize,
+        Casos = sum(Qtd_Casos))
+```
+
+
+```{r}
+# Quantidade de casos por Estado
+df2%>%
+  select(Estado,Data_reportada,Qtd_Casos)%>%
+  group_by(Estado)%>%
+  filter(Data_reportada == '2016-06-11')%>%
+  summarise(Total = (Qtd_Casos))
+```
+ 
+```{r}
+# Grafico de Dispersão da quantidade de casos separando por Data e Região 
+Caso_Regiao <- df2 %>%
+  ggplot(aes( x =Qtd_Casos, y = Regiao,size=Qtd_Casos )) +
+  geom_point(aes(color = as.factor(Data_reportada),
+                 text = paste0(
+                          "Data: ",as.factor(Data_reportada),"\n",
+                          "Quantidade de casos: ",Qtd_Casos,"\n",
+                          "Região: ",Regiao)))+
+  labs(x ='Casos', y ="Região", title = 'Quantidade de casos por Data/Região - Dispersão ',
+       color = 'Data',
+       size = '')  
+ggplotly(Caso_Regiao,tooltip = "text")
+```
+```{r}
+# Grafigo de caixa com a quantidade total de casos por região e suas métricas.
+Caso_regiao2 <- df2 %>%
+        ggplot(aes( y =Qtd_Casos, x = Regiao ,color = as.factor(Regiao)))+
+        geom_boxplot()+
+        labs(y ='Casos', x ="Região", title = 'Quantidade de casos por Região - BoxPlot',
+             color = 'Data')  
+ggplotly(Caso_regiao2)
+
+```
+
+```{r}
+# Grafico de Dispersão da quantidade de casos separando por Data e Estado. 
+Caso_Estado <- df2 %>%
+        ggplot(aes( x =Qtd_Casos, y = Estado,size=Qtd_Casos )) +
+        geom_point(aes(color = as.factor(Data_reportada),
+                       text = paste0(
+                               "Data: ",as.factor(Data_reportada),"\n",
+                               "Quantidade de casos: ",Qtd_Casos,"\n",
+                               "Estado: ",Estado)))+
+        labs(x ='Casos', y ="Região", title = 'Quantidade de casos por Data/Estado - Dispersão ',
+             color = 'Data',
+             size = '')
+ggplotly(Caso_Estado,tooltip = "text")
+```
+
+```{r}
+# Grafico de barras com a Quantidade de casos por Estado.
+Caso_estado2 <- df2 %>%
+  select(Estado,Data_reportada,Qtd_Casos)%>%
+  group_by(Estado)%>%
+  filter(Data_reportada == '2016-06-11')%>%
+  summarise(Total = sum(Qtd_Casos)) %>% 
+  ggplot(aes(x = Total, y = Estado,  text = paste0(
+    "Casos: ",Total, "\n",
+    "Estado: ", Estado
+  )))+
+  geom_bar(stat = "identity",color = "white", fill = "lightblue")+
+  theme_classic(base_size = 13) +
+  labs(title = 'Quantidade de casos por estado - Total',
+       x = 'Estado', y = 'Numero de casos')+
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+ggplotly(Caso_estado2,tooltip = "text")
+```
+
+
+```{r}
+# Quantidade total de casos por data reportada.
+Data_casos <- df2%>%
+  ddply(.(Data_reportada),
+        summarize,
+        Casos = sum(Qtd_Casos))%>% 
+  ggplot(aes(x = Casos, y = as.factor(Data_reportada
+            ),  
+             text = paste0(
+    "Casos: ",Casos, "\n",
+    "Data: ", Data_reportada
+  )))+
+  geom_bar(stat = "identity",color = "white", fill = "lightblue")+
+  theme_classic(base_size = 13) +
+  labs(title = 'Quantidade de casos por Data - Total',
+       x = 'Quantidade de Casos', y = 'Data')
+
+ggplotly(Data_casos,tooltip = "text")
+```
+
+```{r}
+# Faço um facet wrap com graficos de barra com total de casos por região 
+# em cada data. 
+Facet_data <- ggplot(df2, aes(x = Qtd_Casos,y = Regiao, group = Regiao,
+                fill = Regiao))+
+  geom_bar(stat = "identity")+
+  theme_classic(base_size = 9) +
+  labs(title = 'Quantidade de casos por região - data',
+       x = 'Quantidade de Casos', y = 'Região') +
+  facet_wrap(~Data_reportada)
+
+Facet_data
+```
+
+```{r}
+# Mapa Interativo 
+
+# Aqui eu crio do data frame que forma um mapa do brasil, e ja acerto a variável com o nome do estado
+# para que fique igual ao o do df para que eu possa fazer o join corretamente.  
+map <- read_state(code_state ="all", year=2019,)
+estados <- c("Rondonia","Acre","Amazonas" , "Roraima","Para","Amapa","Tocantins","Maranhao","Piaui",
+             "Ceara","Rio_Grande_do_Norte","Paraiba", "Pernambuco", "Alagoas","Sergipe","Bahia"              
+             ,"Minas_Gerais","Espirito_Santo","Rio_de_Janeiro","Sao_Paulo","Parana","Santa_Catarina"     
+             ,"Rio_Grande_do_Sul","Mato_Grosso_do_Sul" ,"Mato_Grosso", "Goias","Distrito_Federal"  )
+map$name_state <- estados
+unique(df2$Estado)
+unique(map$name_state)
+
+# Pego apenas as duas colunas que me interessam no data frame do mapa, que é a do estado ja tradado e o 
+# e o geom que são as coordenadas de cada estado e coloco em um df chamado geom. 
+geom <- map %>%
+  select (name_state, geom)
+head(geom)
+class(geom)
+
+# Crio um dataset apenas com os dados da ultima data para plotar no grafico o total por estado, usando como referencia a ultima data reportada 
+df3 <- df2%>%
+  select(Estado,Data_reportada,Qtd_Casos)%>%
+  group_by(Estado)%>%
+  filter(Data_reportada == '2016-06-11')%>%
+  summarise(Total = (Qtd_Casos))
+
+
+# Faço o join do df geom com o df2 e criou o df mapa_zica contendo os dados dos dois DFs.
+# com isso eu teho um data frame com os dados das pesquisas e as coordenadas dos estados para plotar no mapa. 
+Mapa_zica <- left_join(geom, df3, by = c('name_state' = 'Estado'))
+Mapa_zica = sf::st_cast(Mapa_zica, "MULTIPOLYGON")
+class(Mapa_zica)
+head(Mapa_zica)
+tail(Mapa_zica)
+glimpse(Mapa_zica)
+
+# Mapa interativo onde eu ao passar o mouse pelo Estado no mapa, ele mostra o nome do Estado e o 
+# valor total de casos. 
+
+MapaP_zica <- Mapa_zica %>%
+    ggplot(aes(fill = name_state,
+             text =paste0(
+               "Estado: ",name_state,"\n",
+               "Casos: ",Total)))+
+  geom_sf()+
+  theme(
+    legend.position = "bottom",
+    panel.background = element_blank(),
+    panel.grid.major = element_line(color = "transparent"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank()
+  ) +
+  labs(title = "Mapa - Quantidade Total de casos por Estado",
+       fill = 'Estado')
+
+ggplotly(MapaP_zica,tooltip = "text")
+```
+
+
+## Conclusão 
+
+Com a análise exploratórias, conseguimos mostrar de várias formas diferentes informações que nos ajudam
+a tirar conclusões sobre a analise realizada. 
+
+1 – Em um primeiro momento percebemos um aumento continuo dos casos desde a primeira data até
+a última reportada, que naturalmente é o padrão uma vez que com a pouca informação inicial menos
+medidas preventivas são tomadas ocasionando esse aumento gradativo. 
+
+2 – Constata-se que os maiores casos se concentram nas regiões Nordeste e Sudeste seguindo um pouco
+mais de trás da região centro-Oeste 
+
+3 – Porem com uma análise mais detalhada, percebe-se que essa discrepância nessas 3 Regiões não ocorre 
+de forma equilibrada entre os Estados, mas sim uma em Estado especifico para cada Região, criando
+assim o que é chamado de Outliers, Estados esses que fogem da distribuição normal dos casos por Região. 
+
+4 – Finalizando a Analise, é constatado que os Estados mais atingidos pelo zica vírus foram Bahia,
+Rio de janeiro, Mato grosso e Minas Gerais, já os demais com uma proporção bem menor de casos
+e equilibrada entre eles. 
